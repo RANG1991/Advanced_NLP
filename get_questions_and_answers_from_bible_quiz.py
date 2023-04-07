@@ -1,10 +1,17 @@
 from tika import parser
 import re
+import pytesseract
+import pdfplumber
+from bidi import algorithm as bidialg
 
 PATTERN_Q_A_NUMBER = "(\\d+)(\\)|\\.)"
 
+PATTERN_Q_HEB = "שאלה מספר"
 
-def main():
+PATTERN_A_HEB = "תשובה:"
+
+
+def get_using_tika():
     with open("./QA_bible.txt", "w", encoding="utf-8") as f:
         raw = parser.from_file("english.nationalexam2020-1.pdf")
         list_questions = re.findall(f"{PATTERN_Q_A_NUMBER}(.*?\\?)(.*?)(?={PATTERN_Q_A_NUMBER})", raw["content"],
@@ -24,6 +31,35 @@ def main():
                 [answer.strip().replace("\u200b", "") for answer in answers_formatted if answer.strip() != ''])
             print(f"answers: [{answers_formatted}]")
             f.write(f"answers: [{answers_formatted}]\n")
+
+
+def get_using_pdfplumber():
+    with open("napu2022.txt", "w", encoding="utf-8") as f:
+        with pdfplumber.open(r'C:\Users\galun\PyCharmProjects\ANLP_Final_Project\napu2022.pdf') as pdf:
+            for i in range(11, len(pdf.pages)):
+                page_text = bidialg.get_display(pdf.pages[i].extract_text())
+                f.write(page_text)
+                list_questions_and_answers = re.findall(f"({PATTERN_Q_HEB} \\d+)(.*)", page_text,
+                                                        flags=re.DOTALL)
+                for question_and_answer in list_questions_and_answers:
+                    question_header_number = question_and_answer[0]
+                    question_body = question_and_answer[1]
+                    list_questions_and_answers_single_question = re.search(f"^(.*?){PATTERN_A_HEB}(.*?)$",
+                                                                           question_body, re.DOTALL)
+
+                    questions = list_questions_and_answers_single_question.group(1)
+                    answers = list_questions_and_answers_single_question.group(2)
+                    print(re.findall("(\\s+?[\u0590 -\u05fe]\\..*\\s*?)", questions))
+                    print(re.findall("(\\s+[\u0590 -\u05fe]\\..*\\s+)", answers))
+
+
+def get_using_google_OCR():
+    pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract'
+    print(pytesseract.get_languages(config=''))
+
+
+def main():
+    get_using_pdfplumber()
 
 
 if __name__ == "__main__":
