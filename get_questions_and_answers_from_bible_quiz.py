@@ -4,12 +4,13 @@ import pytesseract
 import pdfplumber
 from bidi import algorithm as bidialg
 import json
+from pathlib import Path
 
 PATTERN_Q_A_NUMBER = "(\\d+)(\\)|\\.)"
 
 PATTERN_Q_HEB = "שאלה מספר"
 
-PATTERN_A_HEB = "תשובה:"
+PATTERN_A_HEB = "(תשובה:|התשובה:|תשובות:)"
 
 
 def get_using_tika():
@@ -36,29 +37,37 @@ def get_using_tika():
 
 def get_using_pdfplumber():
     dict_questions_and_answers = {}
-    with open("napu2022.txt", "w", encoding="utf-8") as f:
-        with pdfplumber.open(r'C:\Users\galun\PyCharmProjects\ANLP_Final_Project\napu2022.pdf') as pdf:
-            for i in range(11, len(pdf.pages)):
-                page_text = bidialg.get_display(pdf.pages[i].extract_text())
-                f.write(page_text)
-                list_questions_and_answers = re.findall(f"({PATTERN_Q_HEB} \\d+)(.*)", page_text,
-                                                        flags=re.DOTALL)
-                for question_and_answer in list_questions_and_answers:
-                    question_header_number = question_and_answer[0]
-                    question_body = question_and_answer[1]
-                    list_questions_and_answers_single_question = re.search(f"^(.*?){PATTERN_A_HEB}(.*?)$",
-                                                                           question_body, re.DOTALL)
-                    questions = list_questions_and_answers_single_question.group(1)
-                    answers = list_questions_and_answers_single_question.group(2)
-                    question_prolog = re.search(f"^(.*?)(?=\\s+?[\u0590 -\u05fe]\\..*\\s*?)", question_body, re.DOTALL).group(1)
-                    questions_list = [str(question).replace("\n", "") for question in re.findall("(\\s+?[\u0590 -\u05fe]\\..*\\s*?)", questions)]
-                    answers_list = [str(answer).replace("\n", "") for answer in re.findall("(\\s+[\u0590 -\u05fe]\\..*\\s+)", answers)]
-                    dict_questions_and_answers[question_header_number] = {"prolog": str(question_prolog).replace("\n", ""),
-                                                                          "questions": questions_list,
-                                                                          "answers": answers_list}
+    with open("Q&A.txt", "w", encoding="utf-8") as f:
+        for file_name in Path("quizes").glob("*.pdf"):
+            with pdfplumber.open(file_name) as pdf:
+                print(file_name)
+                for i in range(len(pdf.pages)):
+                    page_text = bidialg.get_display(pdf.pages[i].extract_text())
+                    f.write(page_text)
+                    list_questions_and_answers = re.findall(f"({PATTERN_Q_HEB} \\d+)(.*)", page_text,
+                                                            flags=re.DOTALL)
+                    for question_and_answer in list_questions_and_answers:
+                        try:
+                            question_header_number = question_and_answer[0]
+                            question_body = question_and_answer[1]
+                            list_questions_and_answers_single_question = re.search(f"^(.*?){PATTERN_A_HEB}(.*?)$",
+                                                                                   question_body, re.DOTALL)
+                            questions = list_questions_and_answers_single_question.group(1)
+                            answers = list_questions_and_answers_single_question.group(3)
+                            question_prolog = re.search(f"^(.*?)(?=\\s+?[\u0590 -\u05fe]\\..*\\s*?)", question_body,
+                                                        re.DOTALL).group(1)
+                            questions_list = [str(question).replace("\n", "") for question in
+                                              re.findall("(\\s+?[\u0590 -\u05fe]\\..*\\s*?)", questions)]
+                            answers_list = [str(answer).replace("\n", "") for answer in
+                                            re.findall("(\\s+[\u0590 -\u05fe]\\..*\\s+)", answers)]
+                            dict_questions_and_answers[question_header_number + "_" + file_name] = {
+                                "prolog": str(question_prolog).replace("\n", ""),
+                                "questions": questions_list,
+                                "answers": answers_list}
+                        except Exception as e:
+                            print(e)
     with open("Q&A.json", "w", encoding="utf-8") as json_f:
         json.dump(dict_questions_and_answers, json_f, ensure_ascii=False, indent=4)
-
 
 
 def get_using_google_OCR():
