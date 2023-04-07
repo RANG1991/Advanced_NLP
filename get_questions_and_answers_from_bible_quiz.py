@@ -60,7 +60,7 @@ def get_using_pdfplumber():
                                               re.findall("(\\s+?[\u0590 -\u05fe]\\..*\\s*?)", questions)]
                             answers_list = [str(answer).replace("\n", "") for answer in
                                             re.findall("(\\s+[\u0590 -\u05fe]\\..*\\s+)", answers)]
-                            dict_questions_and_answers[question_header_number + "_" + file_name] = {
+                            dict_questions_and_answers[question_header_number + "_" + file_name.name] = {
                                 "prolog": str(question_prolog).replace("\n", ""),
                                 "questions": questions_list,
                                 "answers": answers_list}
