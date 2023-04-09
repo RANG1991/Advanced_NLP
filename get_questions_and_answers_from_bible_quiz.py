@@ -5,6 +5,7 @@ import pdfplumber
 from bidi import algorithm as bidialg
 import json
 from pathlib import Path
+from PIL import Image
 
 PATTERN_Q_A_NUMBER = "(\\d+)(\\)|\\.)"
 
@@ -36,11 +37,14 @@ def get_using_tika():
 
 
 def get_using_pdf2go_conversion_and_OCR():
+    pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract'
+    print(pytesseract.get_languages(config=''))
     dict_questions_and_answers = {}
     with open("Q&A.txt", "w", encoding="utf-8") as f:
-        for file_name in Path("quizes").glob("**/*.txt"):
+        for file_name in Path("quizes").glob("**/*.jpg"):
             print(file_name)
-            page_text = bidialg.get_display(open(file_name ,"w").read())
+            page_text = pytesseract.image_to_string(Image.open(file_name), lang='heb')
+            page_text_formatted = bidialg.get_display(page_text)
             f.write(page_text)
             list_questions_and_answers = re.findall(f"({PATTERN_Q_HEB} \\d+)(.*)", page_text, flags=re.DOTALL)
             for question_and_answer in list_questions_and_answers:
@@ -51,13 +55,13 @@ def get_using_pdf2go_conversion_and_OCR():
                                                                            question_body, re.DOTALL)
                     questions = list_questions_and_answers_single_question.group(1)
                     answers = list_questions_and_answers_single_question.group(4)
-                    question_prolog = re.search(f"^(.*?)(?=\\s+?[\u05D0 -\u05D1]\\..*\\s*?)", question_body,
+                    question_prolog = re.search(f"^(.*?)(?=\\s+?[\u05D0-\u05D1]\\..*\\s*?)", question_body,
                                                 re.DOTALL).group(1)
                     questions_list = [str(question).replace("\n", "") for question in
-                                      re.findall("(\\s+?[\u05D0 -\u05D1]\\..*\\s*?)", questions)]
+                                      re.findall("(\\s+?[\u05D0-\u05D1]\\..*\\s*?)", questions)]
                     answers_list = [str(answer).replace("\n", "") for answer in
-                                    re.findall("(\\s+[\u05D0 -\u05D1]\\..*\\s+)", answers)]
-                    dict_questions_and_answers[question_header_number + "_" + file_name.name] = {
+                                    re.findall("(\\s+[\u05D0-\u05D1]\\..*\\s+)", answers)]
+                    dict_questions_and_answers[question_header_number + "_" + str(file_name.parent)] = {
                         "prolog": str(question_prolog).replace("\n", ""),
                         "questions": questions_list,
                         "answers": answers_list}
@@ -86,12 +90,12 @@ def get_using_pdfplumber():
                                                                                    question_body, re.DOTALL)
                             questions = list_questions_and_answers_single_question.group(1)
                             answers = list_questions_and_answers_single_question.group(4)
-                            question_prolog = re.search(f"^(.*?)(?=\\s+?[\u05D0 -\u05D1]\\..*\\s*?)", question_body,
+                            question_prolog = re.search(f"^(.*?)(?=\\s+?[\u05D0-\u05D1]\\..*\\s*?)", question_body,
                                                         re.DOTALL).group(1)
                             questions_list = [str(question).replace("\n", "") for question in
-                                              re.findall("(\\s+?[\u05D0 -\u05D1]\\..*\\s*?)", questions)]
+                                              re.findall("(\\s+?[\u05D0-\u05D1]\\..*\\s*?)", questions)]
                             answers_list = [str(answer).replace("\n", "") for answer in
-                                            re.findall("(\\s+[\u05D0 -\u05D1]\\..*\\s+)", answers)]
+                                            re.findall("(\\s+[\u05D0-\u05D1]\\..*\\s+)", answers)]
                             dict_questions_and_answers[question_header_number + "_" + file_name.name] = {
                                 "prolog": str(question_prolog).replace("\n", ""),
                                 "questions": questions_list,
@@ -108,7 +112,7 @@ def get_using_google_OCR():
 
 
 def main():
-    get_using_google_OCR()
+    get_using_pdf2go_conversion_and_OCR()
 
 
 if __name__ == "__main__":
