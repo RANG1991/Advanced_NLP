@@ -4,6 +4,7 @@ from datasets import load_dataset
 from torch.utils.data import DataLoader
 import torch
 from torch import nn
+from transformers import TrainingArguments
 
 models_names = ["bert-base-uncased", "roberta-base", "google/electra-base-generator"]
 
@@ -21,11 +22,13 @@ def prepare_dataset(dataset_name, batch_size):
 def train_epoch(model, tokenizer, data_loader, optimizer, loss_func):
     model.train()
     running_loss = 0.0
-    for X, y in data_loader:
-        X = tokenizer.encode(X, max_length=tokenizer.model_max_length, padding=True, truncation=True,
-                             return_tensors='pt')
+    for dict_example in data_loader:
+        X = dict_example["sentence"]
+        y = dict_example["label"]
+        X = tokenizer(X, max_length=tokenizer.model_max_length, padding=True, truncation=True,
+                      return_tensors='pt')
         X, y = X.to(device), y.to(device)
-        y_hat = model(X)
+        y_hat = model(**X)
         optimizer.zero_grad()
         loss = loss_func(y, y_hat.squeeze(0))
         loss.backward()
@@ -39,19 +42,20 @@ def train_epoch(model, tokenizer, data_loader, optimizer, loss_func):
 def prepare_model(model_name):
     config = AutoConfig.from_pretrained(model_name)
     model = AutoModelForSequenceClassification.from_pretrained(model_name, config=config)
-    tokenizer = AutoTokenizer(model_name)
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
     return model, tokenizer, config
 
 
 def main():
     prepare()
-    dataloader_train, dataloader_val, dataloader_test = prepare_dataset("sst2", 32)
+    args = TrainingArguments("working_dir")
+    dataloader_train, dataloader_val, dataloader_test = prepare_dataset("sst2", args.per_device_train_batch_size)
     loss_func = nn.CrossEntropyLoss()
     for model_name in models_names:
         model, tokenizer, config = prepare_model(model_name)
         model = model.to(device)
-        optimizer = torch.optim.Adam(model.parameters(), config.learning_rate)
-        for epoch in config.num_epochs:
+        optimizer = torch.optim.Adam(model.parameters(), args.learning_rate)
+        for epoch in range(int(args.num_train_epochs)):
             train_epoch(model, tokenizer, dataloader_train, loss_func, optimizer)
 
 
