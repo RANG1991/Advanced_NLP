@@ -145,13 +145,19 @@ def train_and_validate_using_hugging_face(args, dataset_train, dataset_val, mode
 
 
 def create_res_file(dict_model_name_to_acc_list, training_time, prediction_time):
-    with open("res_Ran.txt", "w") as f:
+    with open("./res_Ran.txt", "w") as f:
         for model_name in dict_model_name_to_acc_list.keys():
             all_acc_list = dict_model_name_to_acc_list[model_name]
             f.write(f"{model_name},{np.mean(all_acc_list)} +- {np.std(all_acc_list)}\n")
         f.write("----\n")
         f.write(f"train time,{training_time}\n")
         f.write(f"predict time,{prediction_time}")
+
+
+def create_predictions_file(list_predictions):
+    with open("./predictions_Ran.txt", "w") as f:
+        for sentence, label in list_predictions:
+            f.write(f"{sentence}###{label}")
 
 
 def initialize_seed(seed):
@@ -203,9 +209,10 @@ def main():
         if best_acc is None or best_acc < mean_acc:
             model_name_with_max_acc = model_name
             best_acc = mean_acc
-    predict_using_pytorch(model_name_with_max_acc, dataset_test)
+    list_predictions = predict_using_pytorch(model_name_with_max_acc, dataset_test)
     dur_prediction_time = time() - start_prediction_time
     create_res_file(dict_model_name_to_acc_list, dur_training_time, dur_prediction_time)
+    create_predictions_file(list_predictions)
 
 
 if __name__ == "__main__":
