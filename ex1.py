@@ -6,17 +6,19 @@ import torch
 from torch import nn
 import numpy as np
 import evaluate
+import random
+import argparse
+from time import time
 
 models_names = ["bert-base-uncased", "roberta-base", "google/electra-base-generator"]
-seed = 123
 device = ("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def prepare_dataset(dataset_name):
+def prepare_dataset(dataset_name, num_samples_train, num_samples_validation, num_samples_test):
     dataset = load_dataset(dataset_name)
-    dataset_train = dataset["train"].select(range(100))
-    dataset_val = dataset["validation"].select(range(100))
-    dataset_test = dataset["test"].select(range(100))
+    dataset_train = dataset["train"].select(range(num_samples_train))
+    dataset_val = dataset["validation"].select(range(num_samples_validation))
+    dataset_test = dataset["test"].select(range(num_samples_test))
     return dataset_train, dataset_val, dataset_test
 
 
@@ -89,12 +91,29 @@ def train_and_validate_using_pytorch(args, dataset_train, dataset_val, model_nam
     loss_func = nn.BCELoss()
     model, tokenizer = prepare_model(model_name)
     optimizer = torch.optim.Adam(model.parameters(), args.learning_rate)
+    list_acc = []
     for _ in range(int(args.num_train_epochs)):
         dataloader_train = DataLoader(dataset_train, batch_size=args.per_device_train_batch_size, shuffle=True)
         train_epoch(model, tokenizer, dataloader_train, loss_func, optimizer)
         # for _ in range(int(args.num_val_epochs)):
         dataloader_val = DataLoader(dataset_val, batch_size=args.per_device_train_batch_size, shuffle=False)
-        val_epoch(model, tokenizer, dataloader_val)
+        acc_epoch = val_epoch(model, tokenizer, dataloader_val)
+        list_acc.append(acc_epoch.item())
+    return list_acc
+
+
+def predict_using_pytorch(model_name, test_dataset):
+    model, tokenizer = prepare_model(model_name)
+    model.eval()
+    list_predictions = []
+    with torch.no_grad():
+        for dict_example in test_dataset:
+            X = dict_example["sentence"]
+            X = tokenizer(X, max_length=tokenizer.model_max_length, truncation=True, return_tensors='pt')
+            X = X.to(device)
+            y_hat = model(X)
+            list_predictions.append((dict_example["sentence"], y_hat.round().item()))
+    return list_predictions
 
 
 def compute_metrics(eval_pred):
@@ -104,7 +123,7 @@ def compute_metrics(eval_pred):
     return metric.compute(predictions=predictions, references=labels)
 
 
-def train_and_validate_using_hugging_face(args, dataset_train, dataset_val, model_name):
+def train_and_validate_using_hugging_face(args, dataset_train, dataset_val, model_name, seed):
     tokenizer = AutoTokenizer.from_pretrained("bert-base-cased")
     dataset_train = dataset_train.map(lambda example: tokenizer(example["sentence"],
                                                                 max_length=tokenizer.model_max_length, padding=True,
@@ -125,14 +144,68 @@ def train_and_validate_using_hugging_face(args, dataset_train, dataset_val, mode
     trainer.train()
 
 
+def create_res_file(dict_model_name_to_acc_list, training_time, prediction_time):
+    with open("res_Ran.txt", "w") as f:
+        for model_name in dict_model_name_to_acc_list.keys():
+            all_acc_list = dict_model_name_to_acc_list[model_name]
+            f.write(f"{model_name},{np.mean(all_acc_list)} +- {np.std(all_acc_list)}\n")
+        f.write("----\n")
+        f.write(f"train time,{training_time}\n")
+        f.write(f"predict time,{prediction_time}")
+
+
+def initialize_seed(seed):
+    torch.cuda.manual_seed(seed)
+    torch.manual_seed(seed)
+    random.seed(seed)
+    np.random.seed(seed)
+
+
 def main():
     prepare()
-    args = TrainingArguments("working_dir")
-    dataset_train, dataset_val, dataset_test = prepare_dataset("sst2")
+    parser = argparse.ArgumentParser(prog='fine-tuning models',
+                                     description='fine-tune three selected models on SST2 dataset')
+    parser.add_argument('num_seeds', type=int)
+    parser.add_argument('num_samples_train', type=int)
+    parser.add_argument('num_samples_validation', type=int)
+    parser.add_argument('num_samples_test', type=int)
+    command_args = parser.parse_args()
+    dataset_train, dataset_val, dataset_test = prepare_dataset("sst2",
+                                                               command_args.num_samples_train,
+                                                               command_args.num_samples_validation,
+                                                               command_args.num_samples_test)
+    dict_model_name_to_acc_list = {}
+    dict_model_name_to_best_acc_seed = {}
+    start_training_time = time()
     for model_name in models_names:
-        train_and_validate_using_pytorch(args, dataset_train, dataset_val, model_name)
+        best_mean_seed_acc = None
+        best_seed = None
+        for seed in range(command_args.num_seeds):
+            initialize_seed(seed)
+            training_args = TrainingArguments("working_dir")
+            list_acc = train_and_validate_using_pytorch(training_args, dataset_train, dataset_val, model_name)
+            if model_name not in dict_model_name_to_acc_list.keys():
+                dict_model_name_to_acc_list[model_name] = []
+            dict_model_name_to_acc_list[model_name].extend(list_acc)
+            if best_mean_seed_acc is None or best_mean_seed_acc < np.mean(list_acc):
+                best_mean_seed_acc = np.mean(list_acc)
+                best_seed = seed
+        dict_model_name_to_best_acc_seed[model_name] = best_seed
+        # for model_name in models_names:
+        #     train_and_validate_using_hugging_face(training_args, dataset_train, dataset_val, model_name, seed)
+    dur_training_time = time() - start_training_time
+    start_prediction_time = time()
+    model_name_with_max_acc = None
+    best_acc = None
     for model_name in models_names:
-        train_and_validate_using_hugging_face(args, dataset_train, dataset_val, model_name)
+        all_acc_list = dict_model_name_to_acc_list[model_name]
+        mean_acc = np.mean(all_acc_list)
+        if best_acc is None or best_acc < mean_acc:
+            model_name_with_max_acc = model_name
+            best_acc = mean_acc
+    predict_using_pytorch(model_name_with_max_acc, dataset_test)
+    dur_prediction_time = time() - start_prediction_time
+    create_res_file(dict_model_name_to_acc_list, dur_training_time, dur_prediction_time)
 
 
 if __name__ == "__main__":
