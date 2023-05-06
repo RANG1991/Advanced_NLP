@@ -108,7 +108,7 @@ def predict_using_pytorch(model_name, test_dataset):
     list_predictions = []
     with torch.no_grad():
         for dict_example in test_dataset:
-            X = dict_example["sentence"]
+            X = dict_example["sentence"][:]
             X = tokenizer(X, max_length=tokenizer.model_max_length, truncation=True, return_tensors='pt')
             X = X.to(device)
             y_hat = model(X)
@@ -156,8 +156,8 @@ def create_res_file(dict_model_name_to_acc_list, training_time, prediction_time)
 
 def create_predictions_file(list_predictions):
     with open("./predictions_Ran.txt", "w") as f:
-        for sentence, label in list_predictions:
-            f.write(f"{sentence}###{label}\n")
+        for sentence, prediction in list_predictions:
+            f.write(f"{sentence}###{prediction}\n")
 
 
 def initialize_seed(seed):
