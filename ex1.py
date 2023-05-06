@@ -157,7 +157,7 @@ def create_res_file(dict_model_name_to_acc_list, training_time, prediction_time)
 def create_predictions_file(list_predictions):
     with open("./predictions_Ran.txt", "w") as f:
         for sentence, label in list_predictions:
-            f.write(f"{sentence}###{label}")
+            f.write(f"{sentence}###{label}\n")
 
 
 def initialize_seed(seed):
