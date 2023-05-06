@@ -14,9 +14,9 @@ device = ("cuda" if torch.cuda.is_available() else "cpu")
 
 def prepare_dataset(dataset_name):
     dataset = load_dataset(dataset_name)
-    dataset_train = dataset["train"]
-    dataset_val = dataset["validation"]
-    dataset_test = dataset["test"]
+    dataset_train = dataset["train"].select(range(100))
+    dataset_val = dataset["validation"].select(range(100))
+    dataset_test = dataset["test"].select(range(100))
     return dataset_train, dataset_val, dataset_test
 
 
@@ -92,7 +92,7 @@ def train_and_validate_using_pytorch(args, dataset_train, dataset_val, model_nam
     for _ in range(int(args.num_train_epochs)):
         dataloader_train = DataLoader(dataset_train, batch_size=args.per_device_train_batch_size, shuffle=True)
         train_epoch(model, tokenizer, dataloader_train, loss_func, optimizer)
-    # for _ in range(int(args.num_val_epochs)):
+        # for _ in range(int(args.num_val_epochs)):
         dataloader_val = DataLoader(dataset_val, batch_size=args.per_device_train_batch_size, shuffle=False)
         val_epoch(model, tokenizer, dataloader_val)
 
@@ -105,6 +105,13 @@ def compute_metrics(eval_pred):
 
 
 def train_and_validate_using_hugging_face(args, dataset_train, dataset_val, model_name):
+    tokenizer = AutoTokenizer.from_pretrained("bert-base-cased")
+    dataset_train = dataset_train.map(lambda example: tokenizer(example["sentence"],
+                                                                max_length=tokenizer.model_max_length, padding=True,
+                                                                truncation=True, return_tensors='pt'), batched=True)
+    dataset_val = dataset_val.map(lambda example: tokenizer(example["sentence"],
+                                                            max_length=tokenizer.model_max_length, padding=True,
+                                                            truncation=True, return_tensors='pt'), batched=True)
     config = AutoConfig.from_pretrained(model_name)
     config.num_labels = 2
     model = AutoModelForSequenceClassification.from_config(config=config)
