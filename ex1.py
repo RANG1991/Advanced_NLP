@@ -60,7 +60,7 @@ def val_epoch(model, tokenizer, data_loader):
             num_examples += 1
             if num_examples % 100 == 0:
                 print(f"accuracy so far: {running_acc / num_examples}")
-        print(f"Loss on the entire training epoch: {running_acc / (len(data_loader)):.4f}")
+        print(f"accuracy on the entire validation epoch: {running_acc / (len(data_loader)):.4f}")
     return running_acc / (len(data_loader))
 
 
