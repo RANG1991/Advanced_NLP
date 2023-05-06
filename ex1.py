@@ -47,19 +47,20 @@ def val_epoch(model, tokenizer, data_loader):
     model.eval()
     running_acc = 0
     num_examples = 0
-    for dict_example in data_loader:
-        X = dict_example["sentence"]
-        y = dict_example["label"]
-        X = tokenizer(X, max_length=tokenizer.model_max_length, padding=True, truncation=True,
-                      return_tensors='pt')
-        X, y = X.to(device), y.to(device)
-        y_hat = model(X)
-        acc_batch = torch.mean(y_hat.round() == y.float())
-        running_acc += acc_batch
-        num_examples += 1
-        if num_examples % 100 == 0:
-            print(f"accuracy so far: {running_acc / num_examples}")
-    print(f"Loss on the entire training epoch: {running_acc / (len(data_loader)):.4f}")
+    with torch.no_grad():
+        for dict_example in data_loader:
+            X = dict_example["sentence"]
+            y = dict_example["label"]
+            X = tokenizer(X, max_length=tokenizer.model_max_length, padding=True, truncation=True,
+                          return_tensors='pt')
+            X, y = X.to(device), y.to(device)
+            y_hat = model(X)
+            acc_batch = torch.mean((y_hat.round().float() == y.float()).float())
+            running_acc += acc_batch
+            num_examples += 1
+            if num_examples % 100 == 0:
+                print(f"accuracy so far: {running_acc / num_examples}")
+        print(f"Loss on the entire training epoch: {running_acc / (len(data_loader)):.4f}")
     return running_acc / (len(data_loader))
 
 
