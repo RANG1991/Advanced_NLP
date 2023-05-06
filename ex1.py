@@ -1,22 +1,23 @@
-from transformers import AutoConfig, AutoModelForSequenceClassification, AutoTokenizer
+from transformers import AutoConfig, AutoModelForSequenceClassification, AutoTokenizer, Trainer, TrainingArguments
 from prepare import prepare
 from datasets import load_dataset
 from torch.utils.data import DataLoader
 import torch
 from torch import nn
-from transformers import TrainingArguments
+import numpy as np
+import evaluate
 
 models_names = ["bert-base-uncased", "roberta-base", "google/electra-base-generator"]
+seed = 123
+device = ("cuda" if torch.cuda.is_available() else "cpu")
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
 
-
-def prepare_dataset(dataset_name, batch_size):
+def prepare_dataset(dataset_name):
     dataset = load_dataset(dataset_name)
-    dataloader_train = DataLoader(dataset["train"], batch_size=batch_size)
-    dataloader_val = DataLoader(dataset["validation"], batch_size=batch_size)
-    dataloader_test = DataLoader(dataset["test"], batch_size=batch_size)
-    return dataloader_train, dataloader_val, dataloader_test
+    dataset_train = dataset["train"]
+    dataset_val = dataset["validation"]
+    dataset_test = dataset["test"]
+    return dataset_train, dataset_val, dataset_test
 
 
 def train_epoch(model, tokenizer, data_loader, loss_func, optimizer):
@@ -42,6 +43,26 @@ def train_epoch(model, tokenizer, data_loader, loss_func, optimizer):
     return running_loss / (len(data_loader))
 
 
+def val_epoch(model, tokenizer, data_loader):
+    model.eval()
+    running_acc = 0
+    num_examples = 0
+    for dict_example in data_loader:
+        X = dict_example["sentence"]
+        y = dict_example["label"]
+        X = tokenizer(X, max_length=tokenizer.model_max_length, padding=True, truncation=True,
+                      return_tensors='pt')
+        X, y = X.to(device), y.to(device)
+        y_hat = model(X)
+        acc_batch = torch.mean(y_hat.round() == y.float())
+        running_acc += acc_batch
+        num_examples += 1
+        if num_examples % 100 == 0:
+            print(f"accuracy so far: {running_acc / num_examples}")
+    print(f"Loss on the entire training epoch: {running_acc / (len(data_loader)):.4f}")
+    return running_acc / (len(data_loader))
+
+
 class Pre_Train_On_SST2(nn.Module):
     def __init__(self, model_name):
         super(Pre_Train_On_SST2, self).__init__()
@@ -63,16 +84,47 @@ def prepare_model(model_name):
     return model, tokenizer
 
 
+def train_and_validate_using_pytorch(args, dataset_train, dataset_val, model_name):
+    loss_func = nn.BCELoss()
+    model, tokenizer = prepare_model(model_name)
+    optimizer = torch.optim.Adam(model.parameters(), args.learning_rate)
+    for _ in range(int(args.num_train_epochs)):
+        dataloader_train = DataLoader(dataset_train, batch_size=args.per_device_train_batch_size, shuffle=True)
+        train_epoch(model, tokenizer, dataloader_train, loss_func, optimizer)
+    # for _ in range(int(args.num_val_epochs)):
+        dataloader_val = DataLoader(dataset_val, batch_size=args.per_device_train_batch_size, shuffle=False)
+        val_epoch(model, tokenizer, dataloader_val)
+
+
+def compute_metrics(eval_pred):
+    logits, labels = eval_pred
+    predictions = np.argmax(logits, axis=-1)
+    metric = evaluate.load("accuracy")
+    return metric.compute(predictions=predictions, references=labels)
+
+
+def train_and_validate_using_hugging_face(args, dataset_train, dataset_val, model_name):
+    config = AutoConfig.from_pretrained(model_name)
+    config.num_labels = 2
+    model = AutoModelForSequenceClassification.from_config(config=config)
+    args.evaluation_strategy = "epoch"
+    trainer = Trainer(
+        model=model,
+        args=args,
+        train_dataset=dataset_train.shuffle(seed=seed),
+        eval_dataset=dataset_val,
+        compute_metrics=compute_metrics)
+    trainer.train()
+
+
 def main():
     prepare()
     args = TrainingArguments("working_dir")
-    dataloader_train, dataloader_val, dataloader_test = prepare_dataset("sst2", args.per_device_train_batch_size)
-    loss_func = nn.BCELoss()
+    dataset_train, dataset_val, dataset_test = prepare_dataset("sst2")
     for model_name in models_names:
-        model, tokenizer = prepare_model(model_name)
-        optimizer = torch.optim.Adam(model.parameters(), args.learning_rate)
-        for epoch in range(int(args.num_train_epochs)):
-            train_epoch(model, tokenizer, dataloader_train, loss_func, optimizer)
+        train_and_validate_using_pytorch(args, dataset_train, dataset_val, model_name)
+    for model_name in models_names:
+        train_and_validate_using_hugging_face(args, dataset_train, dataset_val, model_name)
 
 
 if __name__ == "__main__":
