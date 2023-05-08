@@ -44,8 +44,8 @@ def prepare_model_hugging_face(model_name, args, dataset_train, dataset_val, see
     model = AutoModelForSequenceClassification.from_pretrained(model_name, config=config)
     args.evaluation_strategy = "epoch"
     args.save_strategy = "no"
-    args.report_to = ["wandb"]
-    args.run_name = model_name
+    # args.report_to = ["wandb"]
+    # args.run_name = model_name
     dataset_train = dataset_train.map(lambda example: tokenizer(example["sentence"],
                                                                 max_length=tokenizer.model_max_length,
                                                                 truncation=True), batched=True).shuffle(seed=seed)
@@ -85,7 +85,7 @@ def predict_using_hugging_face(model_name, dict_model_name_to_model_obj_and_best
 
 
 def create_res_file(dict_model_name_to_acc_list, training_time, prediction_time):
-    with open("./res_Ran.txt", "w") as f:
+    with open("res.txt", "w") as f:
         for model_name in dict_model_name_to_acc_list.keys():
             all_acc_list = dict_model_name_to_acc_list[model_name]
             f.write(f"{model_name},{np.mean(all_acc_list)} +- {np.std(all_acc_list)}\n")
@@ -95,7 +95,7 @@ def create_res_file(dict_model_name_to_acc_list, training_time, prediction_time)
 
 
 def create_predictions_file(list_predictions):
-    with open("./predictions_Ran.txt", "w") as f:
+    with open("predictions.txt", "w") as f:
         for sentence, prediction in list_predictions:
             f.write(f"{sentence}###{prediction}\n")
 
@@ -141,7 +141,7 @@ def main():
                 best_trainer_obj = trainer
                 best_tokenizer_obj = tokenizer
         dict_model_name_to_model_obj_and_best_acc_seed[model_name] = (best_trainer_obj, best_tokenizer_obj, best_seed)
-        wandb.finish()
+        # wandb.finish()
     dur_training_time = time() - start_training_time
     start_prediction_time = time()
     model_name_with_max_acc = None
@@ -156,8 +156,8 @@ def main():
                                                   dict_model_name_to_model_obj_and_best_acc_seed,
                                                   dataset_test)
     dur_prediction_time = time() - start_prediction_time
-    # create_res_file(dict_model_name_to_acc_list, dur_training_time, dur_prediction_time)
-    # create_predictions_file(list_predictions)
+    create_res_file(dict_model_name_to_acc_list, dur_training_time, dur_prediction_time)
+    create_predictions_file(list_predictions)
 
 
 if __name__ == "__main__":
