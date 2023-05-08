@@ -39,7 +39,7 @@ def compute_metrics(eval_pred):
 def prepare_model_hugging_face(model_name, args, dataset_train, dataset_val, seed):
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     config = AutoConfig.from_pretrained(model_name)
-    # config.num_labels = 2
+    config.num_labels = 2
     model = AutoModelForSequenceClassification.from_pretrained(model_name, config=config)
     args.evaluation_strategy = "epoch"
     args.save_strategy = "no"
