@@ -1,9 +1,7 @@
 from transformers import AutoConfig, AutoModelForSequenceClassification, AutoTokenizer, Trainer, TrainingArguments
 from prepare import prepare
 from datasets import load_dataset
-from torch.utils.data import DataLoader
 import torch
-from torch import nn
 import numpy as np
 import evaluate
 import random
@@ -56,6 +54,7 @@ def prepare_model_hugging_face(model_name, args, dataset_train, dataset_val, see
         train_dataset=dataset_train,
         eval_dataset=dataset_val,
         tokenizer=tokenizer,
+        save_strategy="no",
         compute_metrics=compute_metrics)
     return trainer, tokenizer
 
