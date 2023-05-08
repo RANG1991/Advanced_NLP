@@ -42,6 +42,7 @@ def prepare_model_hugging_face(model_name, args, dataset_train, dataset_val, see
     config.num_labels = 2
     model = AutoModelForSequenceClassification.from_config(config=config)
     args.evaluation_strategy = "epoch"
+    args.save_strategy = "no"
     dataset_train = dataset_train.map(lambda example: tokenizer(example["sentence"],
                                                                 max_length=tokenizer.model_max_length,
                                                                 truncation=True), batched=True).shuffle(seed=seed)
@@ -54,7 +55,6 @@ def prepare_model_hugging_face(model_name, args, dataset_train, dataset_val, see
         train_dataset=dataset_train,
         eval_dataset=dataset_val,
         tokenizer=tokenizer,
-        save_strategy="no",
         compute_metrics=compute_metrics)
     return trainer, tokenizer
 
