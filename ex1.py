@@ -16,9 +16,18 @@ device = ("cuda" if torch.cuda.is_available() else "cpu")
 
 def prepare_dataset(dataset_name, num_samples_train, num_samples_validation, num_samples_test):
     dataset = load_dataset(dataset_name)
-    dataset_train = dataset["train"].select(range(num_samples_train))
-    dataset_val = dataset["validation"].select(range(num_samples_validation))
-    dataset_test = dataset["test"].select(range(num_samples_test))
+    if num_samples_train != -1:
+        dataset_train = dataset["train"].select(range(num_samples_train))
+    else:
+        dataset_train = dataset["train"]
+    if num_samples_validation != -1:
+        dataset_val = dataset["val"].select(range(num_samples_validation))
+    else:
+        dataset_val = dataset["val"]
+    if num_samples_test != -1:
+        dataset_test = dataset["test"].select(range(num_samples_test))
+    else:
+        dataset_test = dataset["test"]
     return dataset_train, dataset_val, dataset_test
 
 
@@ -151,16 +160,19 @@ def train_and_validate_using_hugging_face(trainer):
     return [metrics["eval_accuracy"]]
 
 
+def change_label_to_zero(example):
+    example["label"] = [0] * len(example["label"])
+    return example
+
+
 def predict_using_hugging_face(model_name, dict_model_name_to_model_obj_and_best_acc_seed, test_dataset):
     best_trainer, best_tokenizer, best_seed = dict_model_name_to_model_obj_and_best_acc_seed[model_name]
     initialize_seed(best_seed)
-    test_dataset = test_dataset.map(lambda example: best_tokenizer(example["sentence"],
-                                                                   max_length=best_tokenizer.model_max_length,
-                                                                   truncation=True),
-                                    batched=True).shuffle(seed=best_seed)
+    test_dataset = test_dataset.map(lambda example: best_tokenizer(example["sentence"], truncation=True), batched=True)
+    test_dataset = test_dataset.map(change_label_to_zero, batched=True)
     predictions = best_trainer.predict(test_dataset)
     preds = np.argmax(predictions.predictions, axis=-1)
-    examples_with_preds = zip(test_dataset, preds)
+    examples_with_preds = zip([example["sentence"] for example in test_dataset], preds)
     return examples_with_preds
 
 
