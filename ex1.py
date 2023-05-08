@@ -12,8 +12,8 @@ models_names = ["bert-base-uncased", "roberta-base", "google/electra-base-genera
 device = ("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def prepare_dataset(dataset_name, num_samples_train, num_samples_validation, num_samples_test):
-    dataset = load_dataset(dataset_name)
+def prepare_dataset(num_samples_train, num_samples_validation, num_samples_test):
+    dataset = load_dataset("glue", "sst2")
     if num_samples_train != -1:
         dataset_train = dataset["train"].select(range(num_samples_train))
     else:
@@ -39,8 +39,8 @@ def compute_metrics(eval_pred):
 def prepare_model_hugging_face(model_name, args, dataset_train, dataset_val, seed):
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     config = AutoConfig.from_pretrained(model_name)
-    config.num_labels = 2
-    model = AutoModelForSequenceClassification.from_config(config=config)
+    # config.num_labels = 2
+    model = AutoModelForSequenceClassification.from_pretrained(model_name, config=config)
     args.evaluation_strategy = "epoch"
     args.save_strategy = "no"
     dataset_train = dataset_train.map(lambda example: tokenizer(example["sentence"],
@@ -113,8 +113,7 @@ def main():
     parser.add_argument('num_samples_validation', type=int)
     parser.add_argument('num_samples_test', type=int)
     command_args = parser.parse_args()
-    dataset_train, dataset_val, dataset_test = prepare_dataset("sst2",
-                                                               command_args.num_samples_train,
+    dataset_train, dataset_val, dataset_test = prepare_dataset(command_args.num_samples_train,
                                                                command_args.num_samples_validation,
                                                                command_args.num_samples_test)
     dict_model_name_to_acc_list = {}
