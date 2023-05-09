@@ -32,7 +32,7 @@ def prepare_dataset(num_samples_train, num_samples_validation, num_samples_test)
 
 def compute_metrics(eval_pred):
     logits, labels = eval_pred
-    predictions = np.argmax(logits, axis=-1)
+    predictions = np.argmax(logits, axis=1)
     metric = evaluate.load("accuracy")
     return metric.compute(predictions=predictions, references=labels)
 
@@ -79,7 +79,7 @@ def predict_using_hugging_face(model_name, dict_model_name_to_model_obj_and_best
     test_dataset = test_dataset.map(lambda example: best_tokenizer(example["sentence"], truncation=True), batched=True)
     test_dataset = test_dataset.map(change_label_to_zero, batched=True)
     predictions = best_trainer.predict(test_dataset)
-    preds = np.argmax(predictions.predictions, axis=-1)
+    preds = np.argmax(predictions.predictions, axis=1)
     examples_with_preds = zip([example["sentence"] for example in test_dataset], preds)
     return examples_with_preds
 
