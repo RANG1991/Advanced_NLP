@@ -9,6 +9,7 @@ import argparse
 from time import time
 import wandb
 
+use_wandb = False
 models_names = ["bert-base-uncased", "roberta-base", "google/electra-base-generator"]
 device = ("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -44,8 +45,11 @@ def prepare_model_hugging_face(model_name, args, dataset_train, dataset_val, see
     model = AutoModelForSequenceClassification.from_pretrained(model_name, config=config)
     args.evaluation_strategy = "epoch"
     args.save_strategy = "no"
-    # args.report_to = ["wandb"]
-    # args.run_name = model_name
+    if use_wandb:
+        args.report_to = ["wandb"]
+        args.run_name = model_name
+    else:
+        args.report_to = []
     dataset_train = dataset_train.map(lambda example: tokenizer(example["sentence"],
                                                                 max_length=tokenizer.model_max_length,
                                                                 truncation=True), batched=True).shuffle(seed=seed)
@@ -76,7 +80,7 @@ def change_label_to_zero(example):
 def predict_using_hugging_face(model_name, dict_model_name_to_model_obj_and_best_acc_seed, test_dataset):
     best_trainer, best_tokenizer, best_seed = dict_model_name_to_model_obj_and_best_acc_seed[model_name]
     initialize_seed(best_seed)
-    test_dataset = test_dataset.map(lambda example: best_tokenizer(example["sentence"], truncation=True), batched=True)
+    test_dataset = test_dataset.map(lambda example: best_tokenizer(example["sentence"]))
     test_dataset = test_dataset.map(change_label_to_zero, batched=True)
     predictions = best_trainer.predict(test_dataset)
     preds = np.argmax(predictions.predictions, axis=1)
@@ -141,7 +145,8 @@ def main():
                 best_trainer_obj = trainer
                 best_tokenizer_obj = tokenizer
         dict_model_name_to_model_obj_and_best_acc_seed[model_name] = (best_trainer_obj, best_tokenizer_obj, best_seed)
-        # wandb.finish()
+        if use_wandb:
+            wandb.finish()
     dur_training_time = time() - start_training_time
     start_prediction_time = time()
     model_name_with_max_acc = None
