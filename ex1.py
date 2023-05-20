@@ -1,3 +1,4 @@
+import transformers
 from transformers import AutoConfig, AutoModelForSequenceClassification, AutoTokenizer, Trainer, TrainingArguments
 from prepare import prepare
 from datasets import load_dataset
@@ -132,7 +133,8 @@ def main():
         best_trainer_obj = None
         best_tokenizer_obj = None
         for seed in range(command_args.num_seeds):
-            initialize_seed(seed)
+            # initialize_seed(seed)
+            transformers.set_seed(seed)
             training_args = TrainingArguments("working_dir")
             trainer, tokenizer = prepare_model_hugging_face(model_name, training_args, dataset_train, dataset_val, seed)
             list_acc = train_and_validate_using_hugging_face(trainer)
