@@ -8,7 +8,7 @@ import evaluate
 import random
 import argparse
 from time import time
-import wandb
+# import wandb
 
 use_wandb = False
 models_names = ["bert-base-uncased", "roberta-base", "google/electra-base-generator"]
