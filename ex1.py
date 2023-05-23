@@ -1,5 +1,6 @@
 import transformers
 from transformers import AutoConfig, AutoModelForSequenceClassification, AutoTokenizer, Trainer, TrainingArguments
+from prepare import prepare
 from datasets import load_dataset
 import torch
 import numpy as np
@@ -112,6 +113,7 @@ def initialize_seed(seed):
 
 
 def main():
+    prepare()
     parser = argparse.ArgumentParser(prog='fine-tuning models',
                                      description='fine-tune three selected models on SST2 dataset')
     parser.add_argument('num_seeds', type=int)

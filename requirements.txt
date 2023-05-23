@@ -1,6 +1,6 @@
-evaluate
 numpy
 torch
+transformers
+evaluate
 datasets
 wandb
-transformers
