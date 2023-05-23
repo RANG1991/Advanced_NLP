@@ -4,3 +4,4 @@ transformers
 evaluate
 datasets
 wandb
+accelerate
